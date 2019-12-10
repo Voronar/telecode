@@ -1,13 +1,13 @@
 package org.voronar.telecode
 
-import cats.effect.Sync
+import cats.effect.ConcurrentEffect
 import cats.implicits._
 import io.circe.syntax._
 import org.http4s.HttpRoutes
 import org.http4s.dsl.Http4sDsl
 
 object TelecodeRoutes {
-  def hookRoute[F[_]: Sync](tCtl: TelecodeCtl[F]): HttpRoutes[F] = {
+  def hookRoute[F[_]: ConcurrentEffect](tCtl: TelecodeCtl[F]): HttpRoutes[F] = {
     import org.voronar.telecode.BotProtocol._
     val dsl = new Http4sDsl[F] {}
     import dsl._

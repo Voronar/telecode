@@ -1,5 +1,4 @@
 package org.voronar.telecode
-import cats.effect.Sync
 import sttp.client._
 import io.circe.generic.auto._
 import sttp.client.circe._
@@ -31,7 +30,7 @@ object InstacodeApi {
   }
   val apiUrl = "http://instaco.de/api/highlight"
 
-  def mkImage[F[_]: Sync](payload: InstacodePayload)(implicit client: SttpUtils.Client[F]) = {
+  def mkImage[F[_]](payload: InstacodePayload)(implicit client: SttpUtils.Client[F]) = {
     println(s"Trying to get image with ${apiUrl} for ${payload.asJson}")
 
     basicRequest

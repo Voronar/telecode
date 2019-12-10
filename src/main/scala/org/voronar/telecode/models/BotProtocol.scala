@@ -4,8 +4,8 @@ import io.circe.generic.auto._
 import io.circe.{Decoder, Encoder}
 import org.http4s.circe._
 import io.circe.syntax._
-import cats.effect.Sync
 import io.circe.HCursor
+import cats.effect.ConcurrentEffect
 
 object BotProtocol {
   object MessageType {
@@ -73,6 +73,6 @@ object BotProtocol {
 
   final case class SendMessage(chat_id: Int, text: String)
 
-  implicit def hookUpdateHttp4sDecoder[F[_]: Sync] = jsonOf[F, Update]
+  implicit def hookUpdateHttp4sDecoder[F[_]: ConcurrentEffect] = jsonOf[F, Update]
   implicit val updateDecoder = Encoder[Update]
 }
