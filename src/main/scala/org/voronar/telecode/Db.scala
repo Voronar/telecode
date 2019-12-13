@@ -9,11 +9,19 @@ object Defaults {
   val theme = "vs"
 }
 
+object InputModes {
+  val SetTheme = "set_theme"
+  val None = ""
+}
+
 trait Db {
   def getChatByChatId(chatId: Int): IO[Option[Db.ChatConfig]]
   def createChatByChatId(chatId: Int): IO[Int]
   def deleteChatByChatId(chatId: Int): IO[Int]
+  def setInputModeState(chatId: Int, state: String): IO[Int]
+  def setTheme(chatId: Int, theme: String): IO[Int]
   def getThemeByChatId(chatId: Int): IO[String]
+  def getInputModeState(chatId: Int): IO[Option[String]]
   def getThemes(): IO[List[String]]
 }
 
@@ -21,6 +29,7 @@ object Db {
   final case class ChatConfig(
     id: Int,
     chatId: Int,
+    inputMode: String,
     theme: String,
   )
 
@@ -51,7 +60,21 @@ object Db {
       """.update.run
         .transact(xa)
 
-    def updateThemeQ(chatId: Int, theme: String) =
+    def setInputModeState(chatId: Int, state: String) =
+      sql"""
+        UPDATE configs
+        SET inputMode=${state}
+        WHERE chatId=${chatId}
+      """.update.run
+        .transact(xa)
+
+    def getInputModeState(chatId: Int) =
+      sql"SELECT inputMode FROM configs WHERE chatId=${chatId}"
+      .query[String]
+      .option
+      .transact(xa)
+
+    def setTheme(chatId: Int, theme: String) =
       sql"""
         UPDATE configs
         SET theme=${theme}
@@ -59,22 +82,6 @@ object Db {
       """.update.run
         .transact(xa)
 
-    def updateThemeChangingState(chatId: Int, state: Boolean) =
-      sql"""
-        UPDATE configs
-        SET themeChanging=${state}
-        WHERE chatId=${chatId}
-      """.update.run
-        .transact(xa)
-
-    def updateTheme(chatId: Int, theme: String) =
-      for {
-        currentChatConfig <- getChatByChatId(chatId)
-        _ <- currentChatConfig match {
-          case Some(_) => updateThemeQ(chatId, theme)
-          case None    => IO.unit
-        }
-      } yield ()
     def getThemeByChatId(chatId: Int) =
       sql"SELECT theme FROM configs WHERE chatId=${chatId}"
         .query[String]

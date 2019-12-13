@@ -16,18 +16,19 @@ object BotCommandNames {
   val GetThemes = s"/get_themes"
 }
 
-object TelecodeCtlCommands {
+object TcltCmd {
   sealed trait Command
   final case class HighlightCode(value: InstacodeApi.InstacodePayload, chatId: Int) extends Command
   final case class SendResponseMessage(value: String, chatId: Int) extends Command
   final case object Noop extends Command
 
+  def sendResponseMessage(value: String, chatId: Int): Command = SendResponseMessage(value, chatId)
   def noop(): Command = Noop
 }
 
 trait TelecodeCtl[F[_]] {
-  def parseInputMessage(message: Option[BotProtocol.Message]): F[TelecodeCtlCommands.Command]
-  def execCommand(command: TelecodeCtlCommands.Command): F[Unit]
+  def parseInputMessage(message: Option[BotProtocol.Message]): F[TcltCmd.Command]
+  def execCommand(command: TcltCmd.Command): F[Unit]
 }
 
 object TelecodeCtl {
@@ -38,7 +39,7 @@ object TelecodeCtl {
     proxyClient: SttpUtils.Client[F],
     db: Db
   ): TelecodeCtl[F] = {
-    import TelecodeCtlCommands._
+    import TcltCmd._
     implicit val clientBackend = proxyClient
 
     new TelecodeCtl[F] {
@@ -91,46 +92,67 @@ object TelecodeCtl {
             message match {
               case Some(msg) => {
                 val chatId = msg.chat.id
-                msg.entities match {
-                  case Some(List(MessageEntity(_, _, MessageType.BotCommand))) => {
-                    processTextOrNoop(msg.text) { text =>
-                      text match {
-                        case cmd if cmd.startsWith(BotCommandNames.GetThemes) =>
-                          for {
-                            themes <- liftF(db.getThemes())
-                          } yield SendResponseMessage(s"Supported themes:\n\n${themes.mkString("\n")}", chatId)
-                        case cmd if cmd.startsWith(BotCommandNames.Start) =>
-                          for {
-                            chat <- liftF(db.getChatByChatId(chatId))
-                            msg <- chat match {
-                              case Some(_) => "Bot already started, bro!".pure[F]
-                              case None =>
-                                liftF(db.createChatByChatId(chatId)) *> "Wellcome to Telecode service, bro!".pure[F]
+                processTextOrNoop(msg.text) { text => {
+                  lazy val textInputModeHandler = msg.entities match {
+                    case Some(List(MessageEntity(_, _, MessageType.BotCommand))) => {
+                        text match {
+                          case cmd if cmd.startsWith(BotCommandNames.SetTheme) =>
+                            registeredChatAction(chatId)(TcltCmd.sendResponseMessage(s"Unauthorized action", chatId).pure[F]) {
+                              for {
+                                _ <- liftF(db.setInputModeState(chatId, InputModes.SetTheme))
+                                themes <- liftF(db.getThemes())
+                              } yield SendResponseMessage(s"Please enter on this themes:\n\n${themes.mkString(", ")}", chatId)
                             }
-                          } yield SendResponseMessage(msg, chatId)
-                        case cmd if cmd.startsWith(BotCommandNames.Stop) =>
-                          for {
-                            chat <- liftF(db.getChatByChatId(chatId))
-                            msg <- chat match {
-                              case Some(_) =>
-                                liftF(db.deleteChatByChatId(chatId)) *> "Thank you for using Telecode service, bro!"
-                                  .pure[F]
-                              case None => "Bot already stoped, bro!".pure[F]
-                            }
-                          } yield SendResponseMessage(msg, chatId)
-                        case _ => noop().pure[F]
-                      }
+                          case cmd if cmd.startsWith(BotCommandNames.GetThemes) =>
+                            for {
+                              themes <- liftF(db.getThemes())
+                            } yield SendResponseMessage(s"Supported themes:\n\n${themes.mkString("\n")}", chatId)
+                          case cmd if cmd.startsWith(BotCommandNames.Start) =>
+                            for {
+                              chat <- liftF(db.getChatByChatId(chatId))
+                              message <- chat match {
+                                case Some(_) => "Bot already started, bro!".pure[F]
+                                case None =>
+                                  liftF(db.createChatByChatId(chatId)) *> "Wellcome to Telecode service, bro!".pure[F]
+                              }
+                            } yield SendResponseMessage(message, chatId)
+                          case cmd if cmd.startsWith(BotCommandNames.Stop) =>
+                            for {
+                              chat <- liftF(db.getChatByChatId(chatId))
+                              message <- chat match {
+                                case Some(_) =>
+                                  liftF(db.deleteChatByChatId(chatId)) *> "Thank you for using Telecode service, bro!".pure[F]
+                                case None => "Bot already stoped, bro!".pure[F]
+                              }
+                            } yield SendResponseMessage(message, chatId)
+                          case _ => noop().pure[F]
+                        }
                     }
-                  }
-                  // regular message
-                  case _ => {
-                    processTextOrNoop(msg.text) { text =>
+                    // regular message
+                    case _ => {
                       registeredChatAction(chatId)(noop().pure[F]) {
                         parseTextHighlight(text, chatId)
                       }
                     }
                   }
-                }
+                  // handle command payload input mode
+                  for {
+                    inputMode <- liftF(db.getInputModeState(chatId))
+                    res <- inputMode match {
+                      case Some("set_theme") => for {
+                        themes <- liftF(db.getThemes())
+                        cmd <- for {
+                          message <- {
+                            if (themes.exists(_ == text)) liftF(db.setTheme(chatId, text)) *> s"New theme successfully setted!".pure[F]
+                            else s"Unsupported theme! Canceling theme input mode.".pure[F]
+                          }
+                          _ <- liftF(db.setInputModeState(chatId, InputModes.None))
+                        } yield  SendResponseMessage(message, chatId)
+                      } yield cmd
+                      case _ => textInputModeHandler
+                    }
+                  } yield res
+                }}
               }
               case None => noop().pure[F]
             }
