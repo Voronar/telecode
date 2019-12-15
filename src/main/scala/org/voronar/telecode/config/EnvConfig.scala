@@ -1,5 +1,12 @@
 package org.voronar.telecode
 
+/**
+ *  Способов конфигурировать своё приложение великое множество.
+ *  В Scala-проектах часто используется https://github.com/lightbend/config, и
+ *  Scala-обёртки, написанные поверх (например https://github.com/ceedubs/ficus, https://github.com/pureconfig/pureconfig и пр.),
+ *  со встроенными функциями для поддержки type-safety ( config.getLong и пр.).
+ *  Также есть возможность подстановки переменных окружения.
+ */
 object EnvConfig {
   def getVariable(name: String) = sys.env.get(name) match {
     case Some(value) => value

@@ -9,8 +9,19 @@ import sttp.client.asynchttpclient.cats.AsyncHttpClientCatsBackend
 import sttp.client._
 
 object TelecodeServer {
+  /**
+   * В данном случае использование Stream не необходимо, так как нет потока данных.
+   * `Stream[F, Nothing]` - стрим, не возвращающий элементов, не несёт практической пользы.
+   * Достаточно использовать некоторый эффект F[_].
+   * Пусть метод возвращает, например F[ExitCode], а не отбрасывает его через `.drain` в конце
+   */
   def stream[F[_]: ConcurrentEffect](implicit T: Timer[F], C: ContextShift[F]): Stream[F, Nothing] = {
     val sttpProxyClient = Stream.eval {
+      /**
+      *  `AsyncHttpClientCatsBackend` - это ресурс, который нуждается в вызове метода
+       *  `close` по окончании работы. Поэтому стоит использовать `Stream.resource` или
+       *  `cats.effect.Resource`
+       */
       AsyncHttpClientCatsBackend(
         options = SttpBackendOptions.socksProxy(EnvConfig.clientProxyHost, EnvConfig.clientProxyPort)
       )

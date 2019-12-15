@@ -9,9 +9,18 @@ import cats.effect.ConcurrentEffect
 
 object BotProtocol {
   object MessageType {
+    /**
+    * Лучше оставить однобуквенные названия для тайп-параметров
+    */
     sealed trait T
     final case object BotCommand extends T
     final case object Pre extends T
+
+    /**
+     * Не стоит выделять дефолтный тип Undefined. Абсолютно нормально,
+     * если обработка сообщений, не поддерживаемых протоколом, будут
+     * фейлиться на этапе декодинга
+     */
     final case object Undefined extends T
 
     implicit val encodeMessageType: Encoder[T] = Encoder.instance {
@@ -20,13 +29,11 @@ object BotProtocol {
       case Undefined  => "pre".asJson
     }
 
-    implicit val decodeMessageType: Decoder[T] = Decoder.instance { (hCursor: HCursor) =>
-      hCursor.as[String].map {
+    implicit val decodeMessageType: Decoder[T] = Decoder[String].map {
         case "bot_command" => BotCommand
         case "pre"         => Pre
         case _             => Undefined
       }
-    }
   }
 
   final case class MessageEntity(
@@ -73,6 +80,10 @@ object BotProtocol {
 
   final case class SendMessage(chat_id: Int, text: String)
 
+  /**
+  * `jsonOf` требует `Sync`, дайте ему только его, а не более сильный `ConcurrentEffect`
+   */
   implicit def hookUpdateHttp4sDecoder[F[_]: ConcurrentEffect] = jsonOf[F, Update]
+  // в названиии decoder, а на самом деле Encoder
   implicit val updateDecoder = Encoder[Update]
 }

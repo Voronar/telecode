@@ -1,8 +1,11 @@
 package org.voronar.telecode
 
+import java.util.concurrent.Executors
+
 import doobie._
 import doobie.implicits._
 import cats.effect.IO
+
 import scala.concurrent.ExecutionContext
 
 object Defaults {
@@ -14,6 +17,11 @@ object InputModes {
   val None = ""
 }
 
+/**
+ *  trait можно сделать с `F[_]`, а уже в имплементации будет `IO`.
+ *  Так весь код будет использоватьт некий абстрактный DB[F], и можно будет
+ *  легко переезжать, например, на ZIO, просто сделав имплементацию.
+ */
 trait Db {
   def getChatByChatId(chatId: Int): IO[Option[Db.ChatConfig]]
   def createChatByChatId(chatId: Int): IO[Int]
@@ -33,7 +41,17 @@ object Db {
     theme: String,
   )
 
+  // F[_] никак не используется
   def impl[F[_]]() = new Db {
+    /**
+     * ContextShift в данном случае необходим, потому что
+     * запросы блокирующие. И такие запросы принято исполнять на отдельном тред-пуле.
+     * Если запросов к СУБД накопится слишком много, забьётся весь тред-пул, на котором
+     * работает приложение, и оно просто зависнет в ожидании.
+     * Поэтому вместо `ExecutionContext.global` надо создать новый:
+     * `ExecutionContext.fromExecutor(Executors.newCachedThreadPool())`
+     */
+
     implicit val cs = IO.contextShift(ExecutionContext.global)
 
     val xa = {

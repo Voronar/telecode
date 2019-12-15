@@ -1,5 +1,6 @@
 package org.voronar.telecode
 
+import cats.Monad
 import cats.implicits._
 import org.voronar.telecode.InstacodeApi.InstacodePayload
 import cats.effect.{ConcurrentEffect, IO, LiftIO}
@@ -34,7 +35,13 @@ trait TelecodeCtl[F[_]] {
 object TelecodeCtl {
   val commandSeparator = "\n"
 
-  def impl[F[_]: ConcurrentEffect](
+  /**
+   * `ConcurrentEffect` - очень сильное требовние. С его помощью можно сделать
+   *  всё что угодно. Кажется, тут хватит и `Monad`. Нужно стараться избегать
+   *  таких универсальных требований как `Concurrent`, `Sync`, `ConcurrentEffect`,
+   *  т.к. это убивает профит TF по ограничению набора разрешенных поведений.
+   */
+  def impl[F[_]: Monad](
     client: SttpUtils.Client[F],
     proxyClient: SttpUtils.Client[F],
     db: Db
@@ -43,6 +50,10 @@ object TelecodeCtl {
     implicit val clientBackend = proxyClient
 
     new TelecodeCtl[F] {
+      /**
+       * Тут абстракция протекает. Вместо LiftIO можно использовать tofu-lift
+       *  https://github.com/TinkoffCreditSystems/tofu/blob/master/core/src/main/scala/tofu/lift/Unlift.scala
+       */
       def liftF[T](effect: IO[T]) = LiftIO[F].liftIO(effect)
       def getCurrentTheme(chatId: Int): F[String] = liftF(db.getThemeByChatId(chatId))
       def registeredChatAction(chatId: Int)(default: F[Command])(action: => F[Command]): F[Command] =
@@ -62,9 +73,17 @@ object TelecodeCtl {
             Some(language.trim(), code)
           } else None
 
+        /**
+        * Вместо этого локального импорта можно выделить весь функионал `InstacodeApi` в trait
+         * и в методе `impl` явно запросить экземпляр. Или даже имлисит
+         *
+         * def impl[F[_]: Monad: InstacodeApi]() = ???
+         *
+         * Тогда уже на уровне определения метода будет понятно, что тут может использоваться IntacodeApi
+         */
         import InstacodeApi._
         codeAndLanguage match {
-          case Some((language, code)) => {
+          case Some((language, code)) =>
             for {
               currentTheme <- getCurrentTheme(chatId)
             } yield HighlightCode(
@@ -75,7 +94,6 @@ object TelecodeCtl {
               ),
               chatId
             )
-          }
 
           case None => noop().pure[F]
         }
@@ -86,6 +104,9 @@ object TelecodeCtl {
         case None        => noop().pure[F]
       }
 
+      /**
+      * Очень сложно прочитать, что делает этот метод. Может, можно как-то порефакторить, чтобы уменьшить вложенность?
+       */
       def parseInputMessage(message: Option[BotProtocol.Message]): F[Command] =
         for {
           command <- {
@@ -177,15 +198,16 @@ object TelecodeCtl {
       def sendMessage(chat_id: Int, msg: String): F[Unit] =
         for {
           res <- TelegramApi.sendMessage(chat_id, msg)
+          // _ <- println("foo").pure[F]
+          // ничем не отличается от
+          // _ = println("foo")
           _ <- println(s"[TelecodeCtl.sendMessage] response: ${res.body.getOrElse("nothing")}").pure[F]
         } yield ()
 
       def sendImage(chat_id: Int, payload: InstacodePayload): F[Unit] =
         for {
-          instaResp <- {
-            implicit val clientBackend = client
-            InstacodeApi.mkImage(payload)
-          }
+        // можно не объявлять локальный имплисит, а передать явно:
+          instaResp <- InstacodeApi.mkImage(payload)(client)
           b64 = instaResp.body.getOrElse("")
           _ <- if (b64 != "") TelegramApi.sendPhotoBase64(chat_id, b64) else ().pure[F]
         } yield ()
