@@ -1,9 +1,8 @@
 package org.voronar.telecode
 
-import cats.effect.{ExitCode, IO, IOApp}
-import cats.implicits._
+import cats.effect.{IO, IOApp}
 
 object Main extends IOApp {
   def run(args: List[String]) =
-    TelecodeServer.stream[IO].compile.drain.as(ExitCode.Success)
+    TelecodeServer.run[IO]()
 }

@@ -4,28 +4,22 @@ import io.circe.generic.auto._
 import io.circe.{Decoder, Encoder}
 import org.http4s.circe._
 import io.circe.syntax._
-import io.circe.HCursor
-import cats.effect.ConcurrentEffect
+import cats.effect.Sync
 
 object BotProtocol {
   object MessageType {
     sealed trait T
     final case object BotCommand extends T
     final case object Pre extends T
-    final case object Undefined extends T
 
     implicit val encodeMessageType: Encoder[T] = Encoder.instance {
       case BotCommand => "bot_command".asJson
       case Pre        => "pre".asJson
-      case Undefined  => "pre".asJson
     }
 
-    implicit val decodeMessageType: Decoder[T] = Decoder.instance { (hCursor: HCursor) =>
-      hCursor.as[String].map {
+    implicit val decodeMessageType: Decoder[T] = Decoder[String].map {
         case "bot_command" => BotCommand
         case "pre"         => Pre
-        case _             => Undefined
-      }
     }
   }
 
@@ -73,6 +67,6 @@ object BotProtocol {
 
   final case class SendMessage(chat_id: Int, text: String)
 
-  implicit def hookUpdateHttp4sDecoder[F[_]: ConcurrentEffect] = jsonOf[F, Update]
-  implicit val updateDecoder = Encoder[Update]
+  implicit def hookUpdateHttp4sDecoder[F[_]: Sync] = jsonOf[F, Update]
+  implicit val updateEncoder = Encoder[Update]
 }

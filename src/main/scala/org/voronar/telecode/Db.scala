@@ -4,6 +4,7 @@ import doobie._
 import doobie.implicits._
 import cats.effect.IO
 import scala.concurrent.ExecutionContext
+import java.util.concurrent.Executors
 
 object Defaults {
   val theme = "vs"
@@ -14,15 +15,15 @@ object InputModes {
   val None = ""
 }
 
-trait Db {
-  def getChatByChatId(chatId: Int): IO[Option[Db.ChatConfig]]
-  def createChatByChatId(chatId: Int): IO[Int]
-  def deleteChatByChatId(chatId: Int): IO[Int]
-  def setInputModeState(chatId: Int, state: String): IO[Int]
-  def setTheme(chatId: Int, theme: String): IO[Int]
-  def getThemeByChatId(chatId: Int): IO[String]
-  def getInputModeState(chatId: Int): IO[Option[String]]
-  def getThemes(): IO[List[String]]
+trait Db[F[_]] {
+  def getChatByChatId(chatId: Int): F[Option[Db.ChatConfig]]
+  def createChatByChatId(chatId: Int): F[Int]
+  def deleteChatByChatId(chatId: Int): F[Int]
+  def setInputModeState(chatId: Int, state: String): F[Int]
+  def setTheme(chatId: Int, theme: String): F[Int]
+  def getThemeByChatId(chatId: Int): F[String]
+  def getInputModeState(chatId: Int): F[Option[String]]
+  def getThemes(): F[List[String]]
 }
 
 object Db {
@@ -33,8 +34,8 @@ object Db {
     theme: String,
   )
 
-  def impl[F[_]]() = new Db {
-    implicit val cs = IO.contextShift(ExecutionContext.global)
+  def impl[F[_]]() = new Db[IO] {
+    implicit val cs = IO.contextShift(ExecutionContext.fromExecutor(Executors.newCachedThreadPool()))
 
     val xa = {
       import EnvConfig._

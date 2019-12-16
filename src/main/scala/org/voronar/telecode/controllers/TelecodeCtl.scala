@@ -37,7 +37,7 @@ object TelecodeCtl {
   def impl[F[_]: ConcurrentEffect](
     client: SttpUtils.Client[F],
     proxyClient: SttpUtils.Client[F],
-    db: Db
+    db: Db[IO]
   ): TelecodeCtl[F] = {
     import TcltCmd._
     implicit val clientBackend = proxyClient
@@ -64,7 +64,7 @@ object TelecodeCtl {
 
         import InstacodeApi._
         codeAndLanguage match {
-          case Some((language, code)) => {
+          case Some((language, code)) =>
             for {
               currentTheme <- getCurrentTheme(chatId)
             } yield HighlightCode(
@@ -75,7 +75,6 @@ object TelecodeCtl {
               ),
               chatId
             )
-          }
 
           case None => noop().pure[F]
         }
@@ -177,15 +176,12 @@ object TelecodeCtl {
       def sendMessage(chat_id: Int, msg: String): F[Unit] =
         for {
           res <- TelegramApi.sendMessage(chat_id, msg)
-          _ <- println(s"[TelecodeCtl.sendMessage] response: ${res.body.getOrElse("nothing")}").pure[F]
+          _ = println(s"[TelecodeCtl.sendMessage] response: ${res.body.getOrElse("nothing")}")
         } yield ()
 
       def sendImage(chat_id: Int, payload: InstacodePayload): F[Unit] =
         for {
-          instaResp <- {
-            implicit val clientBackend = client
-            InstacodeApi.mkImage(payload)
-          }
+          instaResp <- InstacodeApi.mkImage(payload)(client)
           b64 = instaResp.body.getOrElse("")
           _ <- if (b64 != "") TelegramApi.sendPhotoBase64(chat_id, b64) else ().pure[F]
         } yield ()
