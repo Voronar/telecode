@@ -16,20 +16,20 @@ object InputModes {
 }
 
 trait Db[F[_]] {
-  def getChatByChatId(chatId: Int): F[Option[Db.ChatConfig]]
-  def createChatByChatId(chatId: Int): F[Int]
-  def deleteChatByChatId(chatId: Int): F[Int]
-  def setInputModeState(chatId: Int, state: String): F[Int]
-  def setTheme(chatId: Int, theme: String): F[Int]
-  def getThemeByChatId(chatId: Int): F[String]
-  def getInputModeState(chatId: Int): F[Option[String]]
+  def getChatByChatId(chatId: Long): F[Option[Db.ChatConfig]]
+  def createChatByChatId(chatId: Long): F[Int]
+  def deleteChatByChatId(chatId: Long): F[Int]
+  def setInputModeState(chatId: Long, state: String): F[Int]
+  def setTheme(chatId: Long, theme: String): F[Int]
+  def getThemeByChatId(chatId: Long): F[String]
+  def getInputModeState(chatId: Long): F[Option[String]]
   def getThemes(): F[List[String]]
 }
 
 object Db {
   final case class ChatConfig(
-    id: Int,
-    chatId: Int,
+    id: Long,
+    chatId: Long,
     inputMode: String,
     theme: String,
   )
@@ -42,26 +42,26 @@ object Db {
       Transactor.fromDriverManager[IO](dbDriver, dbUrl, dbUser, dbPass)
     }
 
-    def getChatByChatId(chatId: Int) =
+    def getChatByChatId(chatId: Long) =
       sql"SELECT * FROM configs WHERE chatId=${chatId}"
         .query[ChatConfig]
         .option
         .transact(xa)
-    def createChatByChatId(chatId: Int) =
+    def createChatByChatId(chatId: Long) =
       sql"""
         INSERT INTO configs
         (chatId, theme)
         VALUES (${chatId}, ${Defaults.theme})
       """.update.run
         .transact(xa)
-    def deleteChatByChatId(chatId: Int) =
+    def deleteChatByChatId(chatId: Long) =
       sql"""
         DELETE FROM configs
         WHERE chatId=${chatId}
       """.update.run
         .transact(xa)
 
-    def setInputModeState(chatId: Int, state: String) =
+    def setInputModeState(chatId: Long, state: String) =
       sql"""
         UPDATE configs
         SET inputMode=${state}
@@ -69,13 +69,13 @@ object Db {
       """.update.run
         .transact(xa)
 
-    def getInputModeState(chatId: Int) =
+    def getInputModeState(chatId: Long) =
       sql"SELECT inputMode FROM configs WHERE chatId=${chatId}"
       .query[String]
       .option
       .transact(xa)
 
-    def setTheme(chatId: Int, theme: String) =
+    def setTheme(chatId: Long, theme: String) =
       sql"""
         UPDATE configs
         SET theme=${theme}
@@ -83,7 +83,7 @@ object Db {
       """.update.run
         .transact(xa)
 
-    def getThemeByChatId(chatId: Int) =
+    def getThemeByChatId(chatId: Long) =
       sql"SELECT theme FROM configs WHERE chatId=${chatId}"
         .query[String]
         .option

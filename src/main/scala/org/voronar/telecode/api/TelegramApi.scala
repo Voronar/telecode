@@ -19,7 +19,7 @@ object TelegramApi {
       .send()
   }
 
-  def sendPhotoBase64[F[_]: SttpUtils.Client](chat_id: Int, imgb64: String): F[Response[Either[String, String]]] = {
+  def sendPhotoBase64[F[_]: SttpUtils.Client](chat_id: Long, imgb64: String): F[Response[Either[String, String]]] = {
     val decoder = ju.Base64.getDecoder()
     val decodedImg = decoder.decode(imgb64)
     val body = List(
@@ -34,7 +34,7 @@ object TelegramApi {
       .send()
   }
 
-  def sendMessage[F[_]: SttpUtils.Client](chat_id: Int, text: String): F[Response[Either[String, String]]] =
+  def sendMessage[F[_]: SttpUtils.Client](chat_id: Long, text: String): F[Response[Either[String, String]]] =
     basicRequest
       .post(uri"${mkAction("sendMessage")}")
       .body(BotProtocol.SendMessage(chat_id, text))

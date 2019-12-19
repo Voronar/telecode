@@ -18,11 +18,11 @@ object BotCommandNames {
 
 object TcltCmd {
   sealed trait Command
-  final case class HighlightCode(value: InstacodeApi.InstacodePayload, chatId: Int) extends Command
-  final case class SendResponseMessage(value: String, chatId: Int) extends Command
+  final case class HighlightCode(value: InstacodeApi.InstacodePayload, chatId: Long) extends Command
+  final case class SendResponseMessage(value: String, chatId: Long) extends Command
   final case object Noop extends Command
 
-  def sendResponseMessage(value: String, chatId: Int): Command = SendResponseMessage(value, chatId)
+  def sendResponseMessage(value: String, chatId: Long): Command = SendResponseMessage(value, chatId)
   def noop(): Command = Noop
 }
 
@@ -44,8 +44,8 @@ object TelecodeCtl {
 
     new TelecodeCtl[F] {
       def liftF[T](effect: IO[T]) = LiftIO[F].liftIO(effect)
-      def getCurrentTheme(chatId: Int): F[String] = liftF(db.getThemeByChatId(chatId))
-      def registeredChatAction(chatId: Int)(default: F[Command])(action: => F[Command]): F[Command] =
+      def getCurrentTheme(chatId: Long): F[String] = liftF(db.getThemeByChatId(chatId))
+      def registeredChatAction(chatId: Long)(default: F[Command])(action: => F[Command]): F[Command] =
         for {
           chat <- liftF(db.getChatByChatId(chatId))
           r <- chat match {
@@ -54,7 +54,7 @@ object TelecodeCtl {
           }
         } yield r
 
-      def parseTextHighlight(text: String, chatId: Int): F[Command] = {
+      def parseTextHighlight(text: String, chatId: Long): F[Command] = {
         val separatorIndex = text.indexOf(commandSeparator)
         val codeAndLanguage =
           if (separatorIndex != -1) {
@@ -173,13 +173,13 @@ object TelecodeCtl {
           case Noop => ().pure[F]
         }
 
-      def sendMessage(chat_id: Int, msg: String): F[Unit] =
+      def sendMessage(chat_id: Long, msg: String): F[Unit] =
         for {
           res <- TelegramApi.sendMessage(chat_id, msg)
           _ = println(s"[TelecodeCtl.sendMessage] response: ${res.body.getOrElse("nothing")}")
         } yield ()
 
-      def sendImage(chat_id: Int, payload: InstacodePayload): F[Unit] =
+      def sendImage(chat_id: Long, payload: InstacodePayload): F[Unit] =
         for {
           instaResp <- InstacodeApi.mkImage(payload)(client)
           b64 = instaResp.body.getOrElse("")

@@ -30,13 +30,15 @@ env:
 	sleep 1
 	${PSQL} -d postgres -c "GRANT ALL PRIVILEGES ON DATABASE ${PGDATABASE} TO ${PGUSER};"
 	sleep 1
-	make migrate
+	make extract_schema
 	touch $@
 
-migrate:
-	${PSQL} -f migrate.sql -d ${PGDATABASE}
+initdb: .db
 
-dbclean:
+extract_schema:
+	${PSQL} -f telecode.sql -d ${PGDATABASE}
+
+cleandb:
 	${PSQL} -d postgres -c "drop database if exists ${PGDATABASE};"
 	${PSQL} -d postgres -c "drop user ${PGUSER};"
 	rm .db

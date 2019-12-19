@@ -14,10 +14,15 @@ object TelecodeRoutes {
     HttpRoutes.of[F] {
       case req @ POST -> Root / EnvConfig.botHookUrlName / EnvConfig.botToken =>
         for {
-          hookResponse <- req.as[Update]
-          _ <- println(s"Incoming hook json message ${hookResponse.asJson}").pure[F]
-          command <- tCtl.parseInputMessage(hookResponse.message)
-          _ <- tCtl.execCommand(command)
+          hookResponse <- req.as[Update].map(_.asRight[String]).handleError(e => Left(s"Decode error: ${e.toString()}"))
+          _ <- hookResponse match {
+            case Left(e) => println(e).pure[F]
+            case Right(v) => for {
+              _ <- println(s"Incoming hook json message ${v.asJson}").pure[F]
+              command <- tCtl.parseInputMessage(v.message)
+              _ <- tCtl.execCommand(command)
+            } yield ()
+          }
           resp <- Ok()
         } yield resp
     }
